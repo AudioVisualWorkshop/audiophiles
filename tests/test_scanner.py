@@ -53,7 +53,7 @@ def test_scanner_raises_for_missing_directory(tmp_path):
     scanner = AudioScanner()
 
     with pytest.raises(FileNotFoundError):
-        scanner.scan(missingdirectory)
+        scanner.scan(missing_directory)
 
 def test_scanner_raises_for_file_path(tmp_path):
     file_path = tmp_path / "Door.wav"
