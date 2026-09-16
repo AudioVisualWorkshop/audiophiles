@@ -1,3 +1,4 @@
+from audiophiles.core.rename_plan import RenameOperation, RenamePlan
 from audiophiles.core.rules import RenameRule
 from audiophiles.core.tokens import RenameContext, resolve_template
 from audiophiles.models import AudioFile
@@ -54,3 +55,28 @@ class RenameEngine:
             )
             for index, audio_file in enumerate(audio_files, start = 1)
         ]
+
+
+    def create_plan(
+        self,
+        audio_files: list[AudioFile],
+        template: str | None = None,
+        rules: list[RenameRule] | None = None,
+    ) -> RenamePlan:
+        #Create a rename plan without modifying the filesystem
+
+        new_filenames = self.rename_batch(
+            audio_files = audio_files,
+            template = template,
+            rules = rules
+        )
+
+        operations = [
+            RenameOperation(
+                source = audio_file.path,
+                destination = audio_file.path.with_name(new_filename),
+            )
+            for audio_file, new_filename in zip(audio_files, new_filenames)
+        ]
+
+        return RenamePlan(operations=operations)

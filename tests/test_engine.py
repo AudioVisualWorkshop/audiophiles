@@ -3,6 +3,7 @@ from pathlib import Path
 from audiophiles.core.rename_engine import RenameEngine
 from audiophiles.core.rules import PrefixRule, RemoveRule, ReplaceRule, SuffixRule
 from audiophiles.models import AudioFile
+from audiophiles.core.rename_plan import RenamePlan
 
 
 def test_engine_without_template():
@@ -130,3 +131,43 @@ def test_engine_renames_batch_with_rules():
         "Footstep_.wav",
         "Impact_.wav",
     ]
+
+
+def test_create_plan(tmp_path):
+    audio_files = [
+        AudioFile(tmp_path / "Door.wav"),
+        AudioFile(tmp_path / "Metal.wav"),
+    ]
+
+    engine = RenameEngine()
+
+    plan = engine.create_plan(
+        audio_files = audio_files,
+        rules = [PrefixRule("SFX_")],
+    )
+
+    assert isinstance(plan, RenamePlan)
+    assert plan.count == 2
+
+    assert plan.operations[0].source == tmp_path / "Door.wav"
+    assert plan.operations[0].destination == tmp_path / "SFX_Door.wav"
+
+    assert plan.operations[1].source == tmp_path / "Metal.wav"
+    assert plan.operations[1].destination == tmp_path / "SFX_Metal.wav"
+
+
+def test_create_plan_with_template(tmp_path):
+    audio_files = [
+        AudioFile(tmp_path / "Door.wav"),
+        AudioFile(tmp_path / "Metal.wav"),
+    ]
+
+    engine = RenameEngine()
+
+    plan = engine.create_plan(
+        audio_files = audio_files,
+        template = "SFX_$index:03_$stem$extension",
+    )
+
+    assert plan.operations[0].destination == (tmp_path / "SFX_001_Door.wav")
+    assert plan.operations[1].destination == (tmp_path / "SFX_002_Metal.wav")
