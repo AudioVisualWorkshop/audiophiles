@@ -56,12 +56,20 @@ def find_duplicate_destinations(plan: RenamePlan) -> list[str]:
 
 
 def find_existing_destinations(plan: RenamePlan) -> list[str]:
-    #Return destination paths that already exist on disk
+    #Return destination paths that already exist outside the plan
+
+    sources = {
+        operation.source
+        for operation in plan.operations
+    }
 
     existing = []
 
     for operation in plan.operations:
-        if operation.destination.exists():
+        if (
+            operation.destination.exists()
+            and operation.destination not in sources
+        ):
             if str(operation.destination) not in existing:
                 existing.append(str(operation.destination))
 

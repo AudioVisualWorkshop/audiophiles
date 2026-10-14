@@ -319,3 +319,29 @@ def test_validate_plan_detects_problems(tmp_path):
     assert result.invalid_destinations == [
         str(tmp_path / "Stone?.wav")
     ]
+
+
+def test_existing_destinations_allows_destinations_that_are_sources(tmp_path):
+    source_a = tmp_path / "A.wav"
+    source_b = tmp_path / "B.wav"
+
+    source_a.write_text("A")
+    source_b.write_text("B")
+
+    plan = RenamePlan(
+        operations = [
+            RenameOperation(
+                source = source_a,
+                destination = source_b,
+            ),
+            RenameOperation(
+                source = source_b,
+                destination = source_a,
+            ),
+        ]
+    )
+
+    result = validate_plan(plan)
+
+    assert result.existing_destinations == []
+    
