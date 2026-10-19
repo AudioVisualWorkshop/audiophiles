@@ -1,5 +1,6 @@
 from pathlib import Path
 from audiophiles.core.rename_plan import RenamePlan
+from audiophiles.core.validators import validate_plan
 
 
 def rename_file(source: Path, destination: Path) -> None:
@@ -47,7 +48,14 @@ class RenameExecutor:
     #Execute rename plans on the filesystem
 
     def execute(self, plan: RenamePlan) -> None:
-        #Execute a rename plan safely, including cycles
+        #Execute a validated plan safely, including cycles
+
+        validation = validate_plan(plan)
+
+        if not validation.is_valid:
+            raise ValueError(
+                f"Invalid rename plan: {validation}"
+            )
 
         temporary_paths = self.stage_blocked_operations(plan)
 
@@ -63,13 +71,11 @@ class RenameExecutor:
             )
 
     def stage_blocked_operations(self, plan:RenamePlan) -> dict[int, Path]:
-        #Temporarily move blocked source files out of the way
+        #Temporarily move all source files out of the way
 
-        blocked = find_blocked_operations(plan)
         temporary_paths = {}
 
-        for index in blocked:
-            operation = plan.operations[index]
+        for index, operation in enumerate(plan.operations):
 
             temporary_path = create_temp_path(
                 operation.source,

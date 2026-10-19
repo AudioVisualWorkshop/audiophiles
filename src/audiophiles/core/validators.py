@@ -11,6 +11,7 @@ class ValidationResult:
     existing_destinations: list[str]
     noop_operations: list[str]
     invalid_destinations: list[str]
+    missing_sources: list[str]
 
     @property
     def is_valid(self) -> bool:
@@ -20,6 +21,7 @@ class ValidationResult:
             or self.existing_destinations
             or self.noop_operations
             or self.invalid_destinations
+            or self.missing_sources
         )
 
 
@@ -96,4 +98,18 @@ def validate_plan(plan: RenamePlan) -> ValidationResult:
         existing_destinations = find_existing_destinations(plan),
         noop_operations = find_noop_operations(plan),
         invalid_destinations = find_invalid_destinations(plan),
+        missing_sources = find_missing_sources(plan),
     )
+
+
+def find_missing_sources(plan: RenamePlan) -> list[str]:
+    #Return source paths that do not exist on disk
+
+    missing = []
+
+    for operation in plan.operations:
+        if not operation.source.exists():
+            if str(operation.source) not in missing:
+                missing.append(str(operation.source))
+
+    return missing

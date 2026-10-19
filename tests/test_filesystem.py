@@ -1,3 +1,4 @@
+import pytest
 from pathlib import Path
 from audiophiles.filesystem.operations import (
     RenameExecutor, 
@@ -348,3 +349,95 @@ def test_executor_handles_cycle_and_simple_rename(tmp_path):
     assert file_b.read_text() == "audio A"
     assert not file_c.exists()
     assert file_d.read_text() == "audio C"
+
+
+def test_executor_rejects_invalid_plan_without_changing_files(tmp_path):
+    source = tmp_path / "Door.wav"
+    destination = tmp_path / "SFX_Door.wav"
+    missing_source = tmp_path / "Missing.wav"
+    missing_destination = tmp_path / "SFX_Missing.wav"
+
+    source.write_text("original audio placeholder")
+
+    plan = RenamePlan(
+        operations = [
+            RenameOperation(
+                source = source,
+                destination = destination,
+            ),
+            RenameOperation(
+                source = missing_source,
+                destination = missing_destination,
+            ),
+        ]
+    )
+
+    executor = RenameExecutor()
+
+    with pytest.raises(ValueError, match = "Invalid rename plan"):
+        executor.execute(plan)
+
+    #Verify no files were changed
+    assert source.exists()
+    assert source.read_text() == "original audio placeholder"
+    assert not destination.exists()
+    assert not missing_source.exists()
+    assert not missing_destination.exists()
+
+
+def test_executor_failure_during_final_rename(tmp_path, monkeypatch):
+    source_1 = tmp_path / "Door.wav"
+    source_2 = tmp_path / "Metal.wav"
+
+    source_1.write_text("door audio")
+    source_2.write_text("metal audio")
+
+    plan = RenamePlan(
+        operations = [
+            RenameOperation(
+                source = source_1,
+                destination = tmp_path / "SFX_Door.wav",
+            ),
+            RenameOperation(
+                source = source_2,
+                destination = tmp_path / "SFX_Metal.wav",
+            ),
+        ]
+    )
+
+    executor = RenameExecutor()
+    original_rename_file = rename_file
+    final_rename_attempts = 0
+
+    def failing_rename_file(source, destination):
+        nonlocal final_rename_attempts
+
+        if ".audiophiles_tmp_" in source.name:
+            final_rename_attempts += 1
+
+            if final_rename_attempts == 2:
+                raise OSError("Simulated rename failure")
+
+        return original_rename_file(source, destination)
+
+    monkeypatch.setattr(
+        "audiophiles.filesystem.operations.rename_file",
+        failing_rename_file,
+    )
+
+    with pytest.raises(OSError, match = "Simulated rename failure"):
+        executor.execute(plan)
+
+    #Both files should be restored to their original paths
+    assert source_1.exists()
+    assert source_2.exists()
+
+    assert source_1.read_text() == "door audio"
+    assert source_2.read_text() == "metal audio"
+
+    #Neither final destination should remain
+    assert not (tmp_path / "SFX_Door.wav").exists()
+    assert not (tmp_path / "SFX_Metal.wav").exists()
+
+    #No temporary files should remain
+    assert not list(tmp_path.glob(".audiophiles_tmp_*"))

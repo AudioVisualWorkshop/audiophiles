@@ -242,6 +242,9 @@ def test_find_invalid_destinations_returns_empty_for_valid_names(tmp_path):
 
 
 def test_validate_plan_with_valid_operations(tmp_path):
+    (tmp_path / "Door.wav").touch()
+    (tmp_path / "Metal.wav").touch()
+
     operation_1 = RenameOperation(
         source = tmp_path / "Door.wav",
         destination = tmp_path / "SFX_Door.wav",
@@ -263,6 +266,7 @@ def test_validate_plan_with_valid_operations(tmp_path):
     assert result.existing_destinations == []
     assert result.noop_operations == []
     assert result.invalid_destinations == []
+    assert result.missing_sources == []
 
 
 def test_validate_plan_detects_problems(tmp_path):
@@ -345,3 +349,19 @@ def test_existing_destinations_allows_destinations_that_are_sources(tmp_path):
 
     assert result.existing_destinations == []
     
+
+def test_validate_plan_with_missing_source(tmp_path):
+    missing_source = tmp_path / "Missing.wav"
+    destination = tmp_path / "SFX_Missing.wav"
+
+    operation = RenameOperation(
+        source = missing_source,
+        destination = destination,
+    )
+
+    plan = RenamePlan(operations=[operation])
+
+    result = validate_plan(plan)
+
+    assert result.is_valid is False
+    assert str(missing_source) in result.missing_sources
