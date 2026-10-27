@@ -48,7 +48,7 @@ class RenameExecutor:
     #Execute rename plans on the filesystem
 
     def execute(self, plan: RenamePlan) -> None:
-        #Execute a validated plan safely, including cycles
+        #Execute a validated plan safely, including cycles and rollback
 
         validation = validate_plan(plan)
 
@@ -57,26 +57,81 @@ class RenameExecutor:
                 f"Invalid rename plan: {validation}"
             )
 
-        temporary_paths = self.stage_blocked_operations(plan)
+        completed_moves: list[tuple[Path, Path]] = []
 
-        for index, operation in enumerate(plan.operations):
-            source = temporary_paths.get(
-                index,
-                operation.source,
+        try: 
+            temporary_paths = self.stage_blocked_operations(
+                plan,
+                completed_moves,
             )
+
+            for index, operation in enumerate(plan.operations):
+                source = temporary_paths.get(
+                    index, 
+                    operation.source,
+                )
+
+                rename_file(
+                    source = source,
+                    destination = operation.destination,
+                )
+
+                completed_moves.append(
+                    (source, operation.destination)
+                )
         
-            rename_file(
-                source = source,
-                destination = operation.destination,
-            )
+        except Exception as error:
+            rollback_errors = []
 
-    def stage_blocked_operations(self, plan:RenamePlan) -> dict[int, Path]:
+            for source, destination in reversed(completed_moves):
+                if not destination.exists():
+                    rollback_errors.append(
+                        f"Cannot restore {source}: "
+                        f"{destination} no longer exists."
+                    )
+                    continue
+            
+                if source.exists():
+                    rollback_errors.append(
+                        f"Cannot restore {source}: "
+                        f"the original path is occupied."
+                    )
+                    continue
+                
+                try:
+                    rename_file(
+                        source = destination,
+                        destination = source,
+                    )
+                except Exception as rollback_error:
+                    rollback_errors.append(
+                        f"Failed to restore {source}: {rollback_error}"
+                    )
+            
+            if rollback_errors:
+                details = "; ".join(rollback_errors)
+
+                raise RuntimeError(
+                    f"Rename failed: {error}. "
+                    f"Rollback also encountered errors: {details}"
+                ) from error
+
+            raise
+            
+
+    def stage_blocked_operations(
+        self, 
+        plan:RenamePlan,
+        completed_moves: list[tuple[Path, Path]] | None = None,
+        ) -> dict[int, Path]:
         #Temporarily move all source files out of the way
+
+        if completed_moves is None:
+            completed_moves = []
 
         temporary_paths = {}
 
         for index, operation in enumerate(plan.operations):
-
             temporary_path = create_temp_path(
                 operation.source,
                 index + 1,
@@ -88,5 +143,9 @@ class RenameExecutor:
             )
 
             temporary_paths[index] = temporary_path
+
+            completed_moves.append(
+                (operation.source, temporary_path)
+            )
 
         return temporary_paths
