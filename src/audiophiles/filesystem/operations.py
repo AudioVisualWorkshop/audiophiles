@@ -1,6 +1,9 @@
 from pathlib import Path
+from datetime import datetime
 from audiophiles.core.rename_plan import RenamePlan
 from audiophiles.core.validators import validate_plan
+from audiophiles.history.models import RenameHistoryEntry
+from audiophiles.history.operations import HistoryManager
 
 
 def rename_file(source: Path, destination: Path) -> None:
@@ -46,6 +49,14 @@ def find_blocked_operations(plan: RenamePlan) -> list[int]:
 
 class RenameExecutor:
     #Execute rename plans on the filesystem
+
+    def __init__(
+        self,
+        history_manager: HistoryManager | None = None,
+    ) -> None:
+        self.history_manager = (
+            history_manager if history_manager is not None else HistoryManager()
+        )
 
     def execute(self, plan: RenamePlan) -> None:
         #Execute a validated plan safely, including cycles and rollback
@@ -117,7 +128,14 @@ class RenameExecutor:
                 ) from error
 
             raise
-            
+
+        self.history_manager.record(
+            RenameHistoryEntry(
+                plan = plan,
+                timestamp = datetime.now(),
+            )
+        )
+
 
     def stage_blocked_operations(
         self, 

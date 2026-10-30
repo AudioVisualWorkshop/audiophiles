@@ -1,4 +1,5 @@
 import pytest
+from datetime import datetime
 from pathlib import Path
 from audiophiles.filesystem.operations import (
     RenameExecutor, 
@@ -7,6 +8,7 @@ from audiophiles.filesystem.operations import (
     create_temp_path,
 )
 from audiophiles.core.rename_plan import RenameOperation, RenamePlan
+from audiophiles.history.operations import HistoryManager
 
 
 def test_rename_file(tmp_path):
@@ -441,3 +443,64 @@ def test_executor_failure_during_final_rename(tmp_path, monkeypatch):
 
     #No temporary files should remain
     assert not list(tmp_path.glob(".audiophiles_tmp_*"))
+
+
+def test_executor_records_successful_rename(tmp_path):
+    source = tmp_path / "Door.wav"
+    destination = tmp_path / "SFX_Door.wav"
+    source.write_text("door audio")
+
+    plan = RenamePlan(
+        operations = [
+            RenameOperation(
+                source = source,
+                destination = destination,
+            )
+        ]
+    )
+
+    history_manager = HistoryManager()
+    executor = RenameExecutor(history_manager = history_manager)
+
+    executor.execute(plan)
+
+    entry = history_manager.get_latest()
+
+    assert entry is not None
+    assert entry.plan is plan
+    assert entry.count == 1
+    assert entry.renamed_files == [(source, destination)]
+    assert isinstance(entry.timestamp, datetime)
+    assert destination.exists()
+    assert not source.exists()
+
+
+def test_executor_does_not_record_failed_rename(tmp_path, monkeypatch,):
+    source = tmp_path / "Door.wav"
+    destination = tmp_path / "SFX_Door.wav"
+    source.write_text("door audio")
+
+    plan = RenamePlan(
+        operations = [
+            RenameOperation(
+                source = source,
+                destination = destination,
+            )
+        ]
+    )
+
+    history_manager = HistoryManager()
+    executor = RenameExecutor(history_manager = history_manager)
+
+    def failing_rename_file(source, destination):
+        raise OSError("Simulated rename failure")
+
+    monkeypatch.setattr(
+        "audiophiles.filesystem.operations.rename_file",
+        failing_rename_file,
+    )
+
+    with pytest.raises(OSError, match = "Simulated rename failure"):
+        executor.execute(plan)
+
+    assert history_manager.get_all() == []
