@@ -2,7 +2,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 
-from audiophiles.core.rename_plan import RenamePlan
+from audiophiles.core.rename_plan import RenamePlan, RenameOperation
 
 @dataclass (frozen=True)
 class RenameHistoryEntry:
@@ -24,4 +24,16 @@ class RenameHistoryEntry:
             (operation.source, operation.destination)
             for operation in self.plan.operations
         ]
+    
+    def create_inverse_plan(self) -> RenamePlan:
+        #Create a plan that reverses the original rename operations
 
+        inverse_operations = [
+            RenameOperation(
+                source = operation.destination,
+                destination = operation.source,
+            )
+            for operation in reversed(self.plan.operations)
+        ]
+
+        return RenamePlan(operations = inverse_operations)

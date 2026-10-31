@@ -1,4 +1,8 @@
+from __future__ import annotations
 from audiophiles.history.models import RenameHistoryEntry
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from audiophiles.filesystem.operations import RenameExecutor
 
 class HistoryManager:
     #Store and retrieve rename history entries
@@ -24,3 +28,19 @@ class HistoryManager:
     def clear(self) -> None:
         #Clear all stored history entries
         self._entries.clear()
+
+    def undo_latest(self, executor: RenameExecutor) -> RenameHistoryEntry:
+        #Undo most recently recorded rename operation
+
+        entry = self.get_latest()
+
+        if entry is None:
+            raise ValueError("No history available to undo.")
+
+        inverse_plan = entry.create_inverse_plan()
+
+        executor.execute(inverse_plan, record_history = False)
+
+        self._entries.pop()
+
+        return entry

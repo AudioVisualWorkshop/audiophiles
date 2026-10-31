@@ -58,7 +58,7 @@ class RenameExecutor:
             history_manager if history_manager is not None else HistoryManager()
         )
 
-    def execute(self, plan: RenamePlan) -> None:
+    def execute(self, plan: RenamePlan, *, record_history: bool = True) -> None:
         #Execute a validated plan safely, including cycles and rollback
 
         validation = validate_plan(plan)
@@ -129,12 +129,13 @@ class RenameExecutor:
 
             raise
 
-        self.history_manager.record(
-            RenameHistoryEntry(
-                plan = plan,
-                timestamp = datetime.now(),
+        if record_history:
+            self.history_manager.record(
+                RenameHistoryEntry(
+                    plan = plan,
+                    timestamp = datetime.now(),
+                )
             )
-        )
 
 
     def stage_blocked_operations(
